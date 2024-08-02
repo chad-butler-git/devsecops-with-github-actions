@@ -7,8 +7,8 @@ Parameters:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
     Type: AWS::EC2::KeyPair::KeyName
     ConstraintDescription: Must be the name of an existing EC2 KeyPair.
-  SSHLocation:
-    Description: The IP address range that can be used to SSH to the EC2 instances
+  SourceIP:
+    Description: The IP address range that will be used for access to the EC2 instances
     Type: String
     MinLength: '9'
     MaxLength: '18'
@@ -29,11 +29,11 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: !Ref SSHLocation
+          CidrIp: !Ref SourceIP
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          CidrIp: !Ref SSHLocation
+          CidrIp: !Ref SourceIP
           
   PyGoatIAMPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
