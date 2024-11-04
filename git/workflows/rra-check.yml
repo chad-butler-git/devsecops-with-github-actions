@@ -1,0 +1,85 @@
+name: RRA Check
+
+on:
+  push:
+    paths:
+      - rra.md
+  schedule:
+    - cron: '0 0 * * 0'  # Runs weekly to check if an update is needed
+  workflow_dispatch:
+
+jobs:
+  check_rra:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Check rra.md for 'yes' answers
+        id: check_yes
+        run: |
+          if grep -i -q 'yes' rra.md; then
+            echo "needs_review=true" >> $GITHUB_ENV
+          else
+            echo "needs_review=false" >> $GITHUB_ENV
+          fi
+
+      - name: Check rra.md last modified date
+        id: check_date
+        run: |
+          six_months_ago=$(date -d '6 months ago' +%s)
+          last_modified=$(git log -1 --format=%at -- rra.md)
+          if [ "$last_modified" -lt "$six_months_ago" ]; then
+            echo "needs_update=true" >> $GITHUB_ENV
+          else
+            echo "needs_update=false" >> $GITHUB_ENV
+          fi
+
+      - name: Determine Action
+        if: env.needs_review == 'true' || env.needs_update == 'true'
+        run: echo "Action Needed"
+
+      - name: Create Issue (if needed)
+        if: env.needs_review == 'true' || env.needs_update == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueTitle = 'Action Required: Security Review or Update Needed';
+
+            let issueBody = '';
+            if (process.env.needs_review === 'true') {
+              issueBody += '- A security review is required.\n';
+            }
+            if (process.env.needs_update === 'true') {
+              issueBody += '- The RRA file needs to be updated.\n';
+            }
+
+            console.log("needs_review:", process.env.needs_review);
+            console.log("needs_update:", process.env.needs_update);
+            
+            // List all open issues in the repository
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+
+            // Filter for issues with the 'rra-check' label
+            const rraCheckIssues = existingIssues.filter(issue => 
+              issue.labels.some(label => label.name === 'rra-check')
+            );
+
+            console.log("Existing rra-check issues:", rraCheckIssues);
+
+            // Create a new issue if no existing 'rra-check' issues
+            if (rraCheckIssues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: issueBody,
+                labels: ['rra-check'],
+              });
+            } else {
+              console.log("An issue already exists with the label 'rra-check'");
+            }
