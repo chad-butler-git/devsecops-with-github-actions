@@ -18,6 +18,7 @@ jobs:
               run: |
                 echo "AWS_DEFAULT_REGION=us-west-2" >> "$GITHUB_ENV"
                 echo "AWS_SG_NAME=PyGoatSG" >> "$GITHUB_ENV"
+                echo "REPO_LOCATION=<YOUR REPO HERE>" >> "$GITHUB_ENV"
           
             - name: Add GH runner IP to AWS Security Group
               run: |
@@ -37,26 +38,35 @@ jobs:
                 port: ${{ secrets.PORT }} # ssh port, default is 22
                 script: |
                   echo "Syncing git repo..."
-                  if [ ! -d "/home/ec2-user/pygoat/.git" ]; then
+                  if [ ! -d "~/pygoat/.git" ]; then
                     echo "Directory does not exist or is not a git repository. Cloning..."
-                    git clone https://github.com/chad-butler-git/pygoat.git /home/ec2-user/pygoat
-                    cd /home/ec2-user/pygoat
+                    echo "REPO_LOCATION: " ${{ env.REPO_LOCATION }}
+                    git clone ${{ env.REPO_LOCATION }} ~/pygoat
+                    cd ~/pygoat
                   else
                     echo "Directory exists and is a git repository. Pulling latest changes..."
-                    cd /home/ec2-user/pygoat
-                    git pull https://github.com/chad-butler-git/pygoat.git
+                    cd ~/pygoat
+                    git pull ${{ env.REPO_LOCATION }}
                   fi
       
                   echo "Sync git repo complete."
                   echo "Activating venv..."
-                  if [ ! -d "/home/ec2-user/pygoat/venv" ]; then
+                  if [ ! -d "~/pygoat/venv" ]; then
                       echo "Venv does not exist. Creating..."
-                      python3 -m venv venv
+                      python3 -m venv ~/pygoat/venv
                   fi
-                  source venv/bin/activate
+                  source ~/pygoat/venv/bin/activate
                   echo "Venv activated."
                   echo "Installing pip requirements..."
                   pip install -r requirements.txt
+                  echo "Checkign gunicorn..."
+                  if [ ! -d "~/pygoat/venv/bin/gunicorn" ]; then
+                    echo "Gunicorn not found. installing..."
+                    pip install gunicorn
+                  else
+                    echo "Gunicorn installed"
+                  fi
+                  
                   echo "Applying Django migrations..."
                   python3 manage.py migrate
                   echo "Restarting nginx..."
@@ -65,6 +75,7 @@ jobs:
                   sudo systemctl restart gunicorn.service
                   sleep 10  # Give Gunicorn time to start
                   echo "Deployment completed"
+
             - name: Remove GitHub action runner IP from AWS Security Group
               if: always()
               continue-on-error: true
