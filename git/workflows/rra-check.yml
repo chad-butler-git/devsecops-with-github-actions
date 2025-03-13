@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Check rra.md for 'yes' answers
         id: check_yes
@@ -23,14 +25,25 @@ jobs:
             echo "Review needed"
           else
             echo "needs_review=false" >> $GITHUB_ENV
-            echo "No Review needed"
+            echo "No review needed"
           fi
 
       - name: Check rra.md last modified date
         id: check_date
         run: |
           six_months_ago=$(date -d '6 months ago' +%s)
+          echo "six_months_ago=$six_months_ago" >> $GITHUB_ENV
+          echo "Six monts ago timestamp: $six_months_ago"
+          
           last_modified=$(git log -1 --format=%at -- rra.md)
+          if [ -z "$last_modified" ]; then
+            echo "Could not determine last modified date. Exiting."
+            exit 1
+          fi
+          
+          echo "last_modified = $last_modified" >> $GITHUB_ENV
+          echo "Last modified timestamp: $last_modified"
+          
           if [ "$last_modified" -lt "$six_months_ago" ]; then
             echo "needs_update=true" >> $GITHUB_ENV
             echo "Update needed"
